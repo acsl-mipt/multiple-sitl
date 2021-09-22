@@ -32,6 +32,11 @@ def create_fcu_files()
 
       out.puts "udp_offboard_port_local=$((base_port+#{@opts[:pd_offb]}))"
       out.puts "udp_offboard_port_remote=$((base_port+#{@opts[:pd_offb_out]}))"
+
+      if @opts[:airsim]
+        out.puts "udp_offboard2_port_local=$((base_port+#{@opts[:pd_offb2]}))"
+        out.puts "udp_offboard2_port_remote=$((base_port+#{@opts[:pd_offb2_out]}))"
+      end
     end
   }
 end
@@ -468,8 +473,8 @@ def start_airsim
 
     root["Vehicles"][model_name] = v.merge({
       (@opts[:use_tcp] ? "TcpPort" : "UdpPort") => ports[:sim],
-      "ControlPortLocal" => ports[:offb_out],
-      "ControlPortRemote" => ports[:offb],
+      "ControlPortLocal" => ports[:offb2_out],
+      "ControlPortRemote" => ports[:offb2],
       "X" => p[0], "Y" => p[1], "Z" => p[2],
     })
   }
@@ -496,6 +501,9 @@ end
   pd_gcs_out: 5,
   pd_offb: 1,
   pd_offb_out: 6,
+  pd_offb2: 2,
+  pd_offb2_out: 7,
+
   pd_sim: 9,
   pd_gcs_mavros: 2000,
 
