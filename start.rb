@@ -12,6 +12,22 @@ def xspawn(term_name, cmd, debug = false, env = {})
   pid
 end
 
+def xspawn2(term_name, cmd, debug = false, env = {}, tdone = 2, dt = 0.1)
+  term = debug ? "xterm -T #{term_name} -e" : ""
+
+  while true
+    pid = spawn(env, "#{term} #{cmd}", [:out, :err]=>"/dev/null")
+    th = Process.detach(pid)
+    t=0
+    while th.alive? and t<tdone
+      sleep dt
+      t+=dt
+    end
+
+    break unless t<tdone
+  end
+end
+
 def create_fcu_files()
   mkdir_p @abs[:workspace_firmware]
   cd(@abs[:workspace_firmware]) {
@@ -360,13 +376,16 @@ def gz_model(model_name, add_opts)
 end
 
 
-def poses(m_index)
-  l = m_index*@opts[:distance]
-  r = (@opts[:n]-1)*@opts[:distance]/2.0
+def poses(m_index, width = 10)
+  i = m_index % width
+  j = m_index / width
+
+  l = i * @opts[:h_distance]
+  r = (width - 1) * @opts[:h_distance] / 2.0
 
   #relative pose
   p = [
-    - @opts[:distance],
+    (-j - 1) * @opts[:v_distance],
     l - r,
     0,
     0, 0, 0
@@ -482,9 +501,8 @@ def start_airsim
   json_out = @abs[:workspace] + '/settings.json'
   IO.write(json_out, JSON.pretty_generate(root))
 
-  xspawn("airsim", "#{@abs[:airsim]} --settings '#{json_out}'", @opts[:debug])
+  xspawn2("airsim", "#{@abs[:airsim]} --settings '#{json_out}'", @opts[:debug])
 end
-
 ####################################
 
 #default options
@@ -507,7 +525,8 @@ end
   pd_sim: 9,
   pd_gcs_mavros: 2000,
 
-  distance: 2.2,
+  h_distance: 2.2,
+  v_distance: 3.0,
   ref_point: [0, 0, 0.1],
   build_label: "default",
 
@@ -667,21 +686,23 @@ if @opts[:gazebo_ros] or not @opts[:nomavros]
 end
 
 if @opts[:nospawn]
+  if @opts[:airsim]
+    start_airsim()
+  end
+
   iterate_instances { |m_index, m_num, model_name, ports|
     start_firmware(m_index, m_num, model_name, ports) unless @opts[:hitl]
     start_mavros(m_index, m_num, model_name, ports) unless @opts[:nomavros]
     start_rtps(m_index, m_num, model_name, ports) if @opts[:ros2]
   }
 
-  if @opts[:airsim]
-    start_airsim()
-  else
+  unless @opts[:airsim]
     start_gazebo()
-
-    iterate_instances { |m_index, m_num, model_name, ports|
-      wait_firmware(m_index, "ekf2", 1, ": valid")
-    }
   end
+
+  #iterate_instances { |m_index, m_num, model_name, ports|
+  #  wait_firmware(m_index, "ekf2", 1, ": valid")
+  #}
 
   exit
 end
