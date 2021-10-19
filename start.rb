@@ -62,7 +62,7 @@ def check_expanded_path(file_name, dir = nil, msg = nil)
 
   unless File.exist?(p)
     puts "#{p} does not exist" + (msg ? ", #{msg}" : "")
-    exit
+    @opts[:help] = true
   end
 
   p
@@ -73,7 +73,7 @@ def expand_firmware_files()
     @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware])
   end
 
-  for sym in [:firmware_bin, :firmware_sg_build]
+  for sym in [:firmware_bin]
     @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware_build])
   end
 
@@ -109,19 +109,30 @@ def check_gazebo_resource(key)
 
     unless @abs[key]
       puts @rels[key] + " does not exist in " + a.join(", ")
-      exit
+      @opts[:help] = true
     end
   end
 end
 
 def expand_and_check()
+  lst = [:workspace, :ros_ws]
+  lst << :gazebo unless @opts[:airsim]
+
   #do not check
-  for sym in [:workspace, :gazebo, :ros_ws]
+  for sym in lst
     @abs[sym] = File.expand_path(@opts[sym])
   end
 
-  #check
-  for sym in [:firmware, :sitl_gazebo, :plugin_lists, :world_sdf, :firmware_initd, :pose_list, :airsim]
+  lst = [:firmware, :firmware_initd, :pose_list]
+  if @opts[:airsim]
+    lst << :airsim
+  else
+    lst.concat([:sitl_gazebo, :world_sdf])
+  end
+  lst << :plugin_lists unless @opts[:nomavros]
+
+  #check if option set
+  for sym in lst
     @abs[sym] = check_expanded_path(@opts[sym]) if @opts[sym]
   end
 
@@ -132,22 +143,31 @@ def expand_and_check()
 
   @abs[:firmware_initd] = @abs[:home] + "/px4" unless @abs[:firmware_initd]
 
-  for sym in [:sitl_gazebo]
-    @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware]) unless @abs[sym]
-  end
-
   #check firmware files
   expand_firmware_files()
 
   unless @opts[:airsim]
+    for sym in [:sitl_gazebo]
+      @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware]) unless @abs[sym]
+    end
+
+    for sym in [:firmware_sg_build]
+      @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware_build])
+    end
+
     #gazebo resources
     for sym in [:world_sdf, :model_sdf]
       check_gazebo_resource(sym)
     end
+
+    #workspace
+    for sym in [:workspace_model_sdf, :workspace_world_sdf, :workspace_model_opts]
+      @abs[sym] = File.expand_path(@rels[sym], @abs[:workspace])
+    end
   end
 
   #workspace
-  for sym in [:workspace_firmware, :workspace_model_sdf, :workspace_world_sdf, :workspace_model_opts]
+  for sym in [:workspace_firmware]
     @abs[sym] = File.expand_path(@rels[sym], @abs[:workspace])
   end
 
@@ -511,8 +531,11 @@ end
 @opts = {
   n: 1,
   firmware_estimator: "ekf2",
+  firmware_model: "iris",
+
   gazebo_model: "iris",
   go: {},
+  gazebo: "gazebo",
 
   ports_base: 15010,
   ports_step: 10,
@@ -523,8 +546,8 @@ end
   pd_offb_out: 6,
   pd_offb2: 2,
   pd_offb2_out: 7,
-
   pd_sim: 9,
+
   pd_gcs_mavros: 2000,
 
   h_distance: 2.2,
@@ -533,9 +556,10 @@ end
   build_label: "default",
 
   workspace: "workspace",
-  gazebo: "gazebo",
   ros_ws: "workspace/catkin_ws",
 }
+
+@opts
 
 @port_names = []
 
@@ -592,23 +616,14 @@ OptionParser.new do |op|
 
   op.on("--airsim PATH", "path to AirSim shell script")
 
-  op.on("-h", "--help", "help and show defaults") do
+  op.on("-h", "--help", "help and show option values") do
     puts op
-    puts "\nDefault options: #{@opts}"
-
+    puts
     @opts[:help] = true
   end
 end.parse!(into: @opts)
-@opts[:world_sdf] = ARGV[0]
 
 @opts[:ref_point].map! { |s| s.to_f }
-
-if @opts[:hitl]
-    @opts[:go][:serialEnabled] = 1
-    @opts[:go][:hil_mode] = 1
-end
-
-@opts[:go][:use_tcp] = @opts[:use_tcp] ? 1 : 0
 
 if @opts[:nolockstep]
   @opts[:go][:enable_lockstep] = 0
@@ -623,6 +638,15 @@ end
 if @opts[:airsim]
   @opts[:use_tcp] = true
   @opts[:nospawn] = true
+else
+  @opts[:world_sdf] = ARGV[0]
+
+  if @opts[:hitl]
+      @opts[:go][:serialEnabled] = 1
+      @opts[:go][:hil_mode] = 1
+  end
+
+  @opts[:go][:use_tcp] = @opts[:use_tcp] ? 1 : 0
 end
 
 if @opts[:nospawn]
@@ -666,8 +690,12 @@ end
 expand_and_check()
 
 if @opts[:help]
-  puts "\nDefault absolute paths: #{@abs}"
   puts
+  pp "Option values:", @opts
+  puts
+  pp "Absolute paths:", @abs
+  puts
+
   exit
 end
 
