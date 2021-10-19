@@ -319,11 +319,6 @@ def start_gazebo()
     exit
   end
 
-  if not update_model({@opts[:use_tcp] ? 'mavlink_tcp_port' : 'mavlink_udp_port' => '__MAVLINK_PORT__'})
-    puts("add/remove --use_tcp option")
-    exit
-  end
-
   world_sdf = @abs[:world_sdf]
   if @opts[:nospawn]
     m_dir = @abs[:workspace] + "/models"
@@ -358,6 +353,11 @@ def start_gazebo()
       out << @contents[:world_sdf]
     end
 
+  else
+    if not update_model({@opts[:use_tcp] ? 'mavlink_tcp_port' : 'mavlink_udp_port' => '__MAVLINK_PORT__'})
+      puts("add/remove --use_tcp option")
+      exit
+    end
   end
 
   if @opts[:gazebo_ros]
@@ -501,7 +501,9 @@ def start_airsim
   json_out = @abs[:workspace] + '/settings.json'
   IO.write(json_out, JSON.pretty_generate(root))
 
-  xspawn2("airsim", "#{@abs[:airsim]} --settings '#{json_out}'", @opts[:debug])
+  cd(@abs[:pwd]) {
+    xspawn2("airsim", "#{@abs[:airsim]} --settings '#{json_out}'", @opts[:debug])
+  }
 end
 ####################################
 
@@ -656,7 +658,8 @@ end
 
 #script dir
 @abs = {
-  home: __dir__
+  home: __dir__,
+  pwd: Dir.pwd
 }
 
 #expand and check paths
@@ -695,7 +698,6 @@ if @opts[:nospawn]
     start_mavros(m_index, m_num, model_name, ports) unless @opts[:nomavros]
     start_rtps(m_index, m_num, model_name, ports) if @opts[:ros2]
   }
-
   unless @opts[:airsim]
     start_gazebo()
   end

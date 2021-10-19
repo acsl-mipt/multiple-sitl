@@ -1,4 +1,4 @@
-pkill gz
+pkill "gz "
 pkill gzclient
 pkill gzserver
 pkill gazebo
