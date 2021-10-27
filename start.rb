@@ -125,7 +125,7 @@ def expand_and_check()
 
   lst = [:firmware, :firmware_initd, :pose_list]
   if @opts[:airsim]
-    lst << :airsim
+    lst.concat([:airsim, :airsim_settings])
   else
     lst.concat([:sitl_gazebo, :world_sdf])
   end
@@ -475,7 +475,8 @@ def start_airsim
   @opts[:home_gps].map! { |s| s.to_f }
 
   require 'json'
-  json_in = @abs[:home] + '/airsim/settings.json'
+
+  json_in = @abs[:airsim_settings] ? @abs[:airsim_settings] : @abs[:home] + '/airsim/settings.json'
   root = JSON.parse(File.read(json_in))
 
   root.update({
@@ -514,7 +515,8 @@ def start_airsim
       (@opts[:use_tcp] ? "TcpPort" : "UdpPort") => ports[:sim],
       "ControlPortLocal" => ports[:offb2_out],
       "ControlPortRemote" => ports[:offb2],
-      "X" => p[0], "Y" => p[1], "Z" => p[2],
+      #enu to ned
+      "X" => p[1], "Y" => p[0], "Z" => -p[2],
     })
   }
 
@@ -615,6 +617,7 @@ OptionParser.new do |op|
   op.on("--ros2", "ROS2 mode with micrortps client/agent")
 
   op.on("--airsim PATH", "path to AirSim shell script")
+  op.on("--airsim_settings PATH", "path to AirSim settings")
 
   op.on("-h", "--help", "help and show option values") do
     puts op
