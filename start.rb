@@ -39,6 +39,12 @@ def create_fcu_files()
       out.puts "param set SDLOG_MODE -1" unless @opts[:logging]
       #TODO
       out.puts "param set MAV_USEHILGPS 1" if @opts[:hil_gps]
+      if @opts[:home_gps]
+        out.puts "param set EKF2_REF_SET 1"
+        out.puts "param set EKF2_REF_LAT #{@opts[:home_gps][0]}"
+        out.puts "param set EKF2_REF_LON #{@opts[:home_gps][1]}"
+        out.puts "param set EKF2_REF_ALT #{@opts[:home_gps][2]}"
+      end
 
       out.puts "base_port=$((#{@opts[:ports_base]}+px4_instance*#{@opts[:ports_step]}))"
       out.puts "simulator_opts=\"-#{@opts[:use_tcp] ? 'c' : 'u'} $((base_port+#{@opts[:pd_sim]}))\""
@@ -304,15 +310,6 @@ def gz_env()
   }
   cmd = @abs[:home] + "/gz_env.sh"
 
-
-  if @opts[:nospawn]
-    @opts[:home_dt] = 3 unless @opts[:home_dt]
-  end
-
-  if @opts[:home_dt]
-    env['PX4_HOME_DT'] = @opts[:home_dt].to_s
-  end
-
   if @opts[:home_gps]
     env['PX4_HOME_LAT'] = @opts[:home_gps][0]
     env['PX4_HOME_LON'] = @opts[:home_gps][1]
@@ -501,11 +498,6 @@ def start_airsim
     "UseTcp" => (@opts[:use_tcp] ? true : false)
   })
 
-  v["Parameters"].update({
-    "LPE_LAT" => @opts[:home_gps][0],
-    "LPE_LON" => @opts[:home_gps][1]
-  })
-
   root["Vehicles"] = {}
 
   iterate_instances { |m_index, m_num, model_name, ports|
@@ -613,7 +605,6 @@ OptionParser.new do |op|
   op.on("--nolockstep", "lockstep disabled")
   op.on("--nospawn", "without spawn")
   op.on("--home_gps x,y,z", Array, "home point Lat,Lon,Alt")
-  op.on("--home_dt DT", Float, "PX4_HOME_DT env variable")
   op.on("--ros2", "ROS2 mode with micrortps client/agent")
 
   op.on("--airsim PATH", "path to AirSim shell script")
