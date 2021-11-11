@@ -39,6 +39,9 @@ def create_fcu_files()
       out.puts "param set SDLOG_MODE -1" unless @opts[:logging]
       #TODO
       out.puts "param set MAV_USEHILGPS 1" if @opts[:hil_gps]
+      @opts[:fo].each { |k, v|
+        out.puts "param set #{k} #{v}"
+      }
       if @opts[:home_gps]
         out.puts "param set EKF2_REF_SET 1"
         out.puts "param set EKF2_REF_LAT #{@opts[:home_gps][0]}"
@@ -529,6 +532,7 @@ end
 
   gazebo_model: "iris",
   go: {},
+  fo: {},
   gazebo: "gazebo",
 
   ports_base: 15010,
@@ -563,6 +567,7 @@ OptionParser.new do |op|
 
   op.on("-n NUM", Integer, "number of instances")
   op.on("-g PARAM=VALUE", /(.+)=(.+)/, "gazebo model option") { |p, k, v| @opts[:go][k] = v }
+  op.on("-f PARAM=VALUE", /(.+)=(.+)/, "firmware parameter") { |p, k, v| @opts[:fo][k] = v }
 
   op.on("--firmware_estimator NAME")
   op.on("--firmware_model NAME")
