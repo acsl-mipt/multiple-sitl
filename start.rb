@@ -488,25 +488,33 @@ def start_airsim
     }
   })
 
-  vs = root["Vehicles"].values
-  if vs.size == 0
+  k=nil
+  v=nil
+  for k_,v_ in root["Vehicles"]
+    if v_.has_key?("VehicleType") and v_["VehicleType"] == "PX4Multirotor"
+      k = k_
+      v = v_
+    end
+  end
+
+  unless k
     puts("invalid #{json_in}")
     exit
   end
 
-  v = vs[0]
   v.update({
     "UseSerial" => false,
     "LockStep" => (not @opts[:nolockstep]),
     "UseTcp" => (@opts[:use_tcp] ? true : false)
   })
 
-  root["Vehicles"] = {}
+  root["Vehicles"].delete(k)
 
+  vs = {}
   iterate_instances { |m_index, m_num, model_name, ports|
     p = poses(m_index)
 
-    root["Vehicles"][model_name] = v.merge({
+    vs[model_name] = v.merge({
       (@opts[:use_tcp] ? "TcpPort" : "UdpPort") => ports[:sim],
       "ControlPortLocal" => ports[:offb2_out],
       "ControlPortRemote" => ports[:offb2],
@@ -514,6 +522,9 @@ def start_airsim
       "X" => p[1], "Y" => p[0], "Z" => -p[2],
     })
   }
+
+  vs.merge!(root["Vehicles"])
+  root["Vehicles"] = vs
 
   json_out = @abs[:workspace] + '/settings.json'
   IO.write(json_out, JSON.pretty_generate(root))
