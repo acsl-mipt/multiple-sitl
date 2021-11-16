@@ -43,7 +43,7 @@ def create_fcu_files()
         out.puts "param set #{k} #{v}"
       }
       if @opts[:home_gps]
-        out.puts "param set EKF2_REF_SET 1"
+        #out.puts "param set EKF2_REF_SET 1"
         out.puts "param set EKF2_REF_LAT #{@opts[:home_gps][0]}"
         out.puts "param set EKF2_REF_LON #{@opts[:home_gps][1]}"
         out.puts "param set EKF2_REF_ALT #{@opts[:home_gps][2]}"
