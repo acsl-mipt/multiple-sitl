@@ -3,6 +3,7 @@ pkill "gz "
 pkill gzclient
 pkill gzserver
 pkill gazebo
+pkill -f "ign gazebo"
 pkill roslaunch
 pkill roscore
 pkill micrortps_agent

@@ -389,6 +389,75 @@ def start_gazebo()
   }
 end
 
+def start_ignition()
+  env, cmd = gz_env()
+
+  tr = { 'GAZEBO_PLUGIN_PATH'=> 'IGN_GAZEBO_SYSTEM_PLUGIN_PATH', 'GAZEBO_MODEL_PATH'=> 'IGN_GAZEBO_RESOURCE_PATH'}
+  env.transform_keys! { |k|
+    if tr[k]
+      tr[k]
+    else
+      k
+    end
+  }
+
+  #paths
+  mkdir_p @abs[:workspace]
+
+  if not update_model(@opts[:go])
+    puts("check -g options")
+    exit
+  end
+
+  m = /(.+)(<plugin.*GazeboMavlinkInterface.*?plugin>)(.*?)(<\/model>.*)/m.match(@contents[:model_sdf])
+  if m.nil?
+    puts("can't find GazeboMavlinkInterface plugin in model")
+    exit
+  end
+
+  @contents[:model_sdf] = m[1] + m[3] + m[4]
+
+  k = @opts[:use_tcp] ? 'mavlink_tcp_port' : 'mavlink_udp_port'
+  plugin_parts = /(.+<#{k}>).*(<\/#{k}>.+)/m.match(m[2])
+  if plugin_parts.nil?
+    puts("can't find #{k} in plugin, add/remove --use_tcp option")
+    exit
+  end
+
+  m_dir = @abs[:workspace] + "/models"
+  mkdir_p m_dir
+  cp_r(File.dirname(@abs[:model_sdf]), m_dir)
+
+  File.open(@abs[:workspace_model_sdf], 'w') do |out|
+    out << @contents[:model_sdf]
+  end
+
+  model_incs = ""
+  iterate_instances { |m_index, m_num, model_name, ports|
+    port = @opts[:hitl] ? ports[:offb] : ports[:sim]
+
+    model_incs += "\n    <include>
+    <name>#{model_name}</name><uri>model://#{@opts[:gazebo_model]}</uri><pose>#{poses(m_index).join(' ')}</pose>
+    #{plugin_parts[1]}#{port}#{plugin_parts[2]}
+    </include>"
+  }
+
+  m = /(.+)(<\/world>.+)/m.match(@contents[:world_sdf])
+  if m
+    @contents[:world_sdf] = m[1] + model_incs + m[2]
+  end
+
+  world_sdf = @abs[:workspace_world_sdf]
+  File.open(world_sdf, 'w') do |out|
+    out << @contents[:world_sdf]
+  end
+
+  cd(@abs[:workspace]) {
+    xspawn("gazebo", "ign gazebo #{'--verbose' if @opts[:debug]} -r #{world_sdf}", @opts[:debug], env)
+  }
+end
+
+
 def gz_model(model_name, add_opts)
   env, cmd = gz_env()
 
@@ -626,6 +695,8 @@ OptionParser.new do |op|
   op.on("--airsim PATH", "path to AirSim shell script")
   op.on("--airsim_settings PATH", "path to AirSim settings")
 
+  op.on("--ignition", "use ignition Gazebo")
+
   op.on("-h", "--help", "help and show option values") do
     puts op
     puts
@@ -649,6 +720,10 @@ if @opts[:airsim]
   @opts[:use_tcp] = true
   @opts[:nospawn] = true
 else
+  if @opts[:ignition]
+    @opts[:nospawn] = true
+  end
+
   @opts[:world_sdf] = ARGV[0]
 
   if @opts[:hitl]
@@ -685,6 +760,15 @@ end
   workspace_world_sdf: "default.sdf",
   workspace_model_opts: "default.xml",
 }
+
+if @opts[:ignition]
+  @rels.update({
+   sitl_gazebo: "Tools/simulation-ignition",
+   firmware_sg_build: "build_ign_gazebo",
+   model_sdf: "models/#{@opts[:gazebo_model]}/model.sdf"
+  }
+  )
+end
 
 if @opts[:nospawn]
   @rels[:workspace_model_sdf] = @rels[:model_sdf]
@@ -737,7 +821,11 @@ if @opts[:nospawn]
     start_rtps(m_index, m_num, model_name, ports) if @opts[:ros2]
   }
   unless @opts[:airsim]
-    start_gazebo()
+    if @opts[:ignition]
+      start_ignition()
+    else
+      start_gazebo()
+    end
   end
 
   #iterate_instances { |m_index, m_num, model_name, ports|
