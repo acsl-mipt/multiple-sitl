@@ -42,12 +42,6 @@ def create_fcu_files()
       @opts[:fo].each { |k, v|
         out.puts "param set #{k} #{v}"
       }
-      if @opts[:home_gps]
-        #out.puts "param set EKF2_REF_SET 1"
-        out.puts "param set EKF2_REF_LAT #{@opts[:home_gps][0]}"
-        out.puts "param set EKF2_REF_LON #{@opts[:home_gps][1]}"
-        out.puts "param set EKF2_REF_ALT #{@opts[:home_gps][2]}"
-      end
 
       out.puts "base_port=$((#{@opts[:ports_base]}+px4_instance*#{@opts[:ports_step]}))"
       out.puts "simulator_opts=\"-#{@opts[:use_tcp] ? 'c' : 'u'} $((base_port+#{@opts[:pd_sim]}))\""
@@ -160,9 +154,7 @@ def expand_and_check()
       @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware]) unless @abs[sym]
     end
 
-    for sym in [:firmware_sg_build]
-      @abs[sym] = check_expanded_path(@rels[sym], @abs[:firmware_build])
-    end
+    @abs[:firmware_sg_build] = check_expanded_path(@rels[:firmware_sg_build], @abs[:firmware_build]) unless @opts[:sitl_gazebo]
 
     #gazebo resources
     for sym in [:world_sdf, :model_sdf]
@@ -400,6 +392,10 @@ def start_ignition()
       k
     end
   }
+  env.each { |k, v|
+    env[k] = ENV[k] + ':' + v if ENV[k]
+  }
+
 
   #paths
   mkdir_p @abs[:workspace]
